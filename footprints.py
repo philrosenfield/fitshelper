@@ -1,4 +1,5 @@
 import numpy as np
+from collections import OrderedDict
 from shapely.geometry import Polygon
 
 
@@ -28,22 +29,81 @@ def find_footprint(fitsfile, hdrext=1, closed=True):
         foot = np.vstack((foot, foot[0]))
     return foot
 
+def merge_polygons(polygondic):
+    pdict = {k: p for k, p in polygondic.items() if p.is_valid is True}
+    first = list(pdict.keys())[0]
+    ply = pdict[first]
+    for i in pdict.keys():
+        if i == first:
+            continue
+        ply = ply.union(pdict[i])
+    ply2 = ply.convex_hull
+    return ply2, list(pdict.keys())
+
+
+def split_polygons(polygonlist, tol=49.):
+    """
+    Return an OrderedDict of polygons that intersect with the first value and
+    an OrderedDict of polygons that do not interesect with the first value.
+    """
+    ins = OrderedDict()
+    outs = OrderedDict()
+    if len(polygonlist) > 0:
+        first = list(polygonlist.keys())[0]
+        ply0 = polygonlist[first].convex_hull
+        ins = {first: ply0}
+        for i in polygonlist.keys():
+            if i == first:
+                continue
+            ply = polygonlist[i].convex_hull
+            if ply0.intersects(ply):
+                olap = ply0.intersection(ply).area / ply.area * 100
+                if olap > tol:
+                    ins[i] = ply
+                else:
+                    # print(olap)
+                    outs[i] = ply
+            else:
+                outs[i] = ply
+    return ins, outs
+
+
+def group_polygons(polylist):
+    """
+    group a list of Polygons into ones that intersect with eachother
+    returns a list of dictionaries with keys maintaining order of list index
+    and values being the associated polygon
+    """
+    npolys = len(polylist)
+    # outs = polylist
+    outs = {i: p for i, p in enumerate(polylist)}
+    groups = []
+    while len(outs) != 0:
+        ins, outs = split_polygons(outs)
+        if len(ins) > 0:
+            groups.append(ins)
+    assert npolys == np.sum([len(g) for g in groups]), 'lost polygons'
+    return groups
+
 
 def parse_poly(line, closed=True, return_string=False):
     """
     Convert a polygon into N,2 np array. If closed, repeat first coords at end.
     """
-    repd = {'J2000 ': '', 'GSC1 ': '', 'ICRS ': '', 'multi': '',
-            'polygon': '', ')': '', '(': ''}
+    repd = {'j2000 ': '', 'gsc1 ': '', 'icrs ': '', 'multi': '',
+            'polygon': '', ')': '', '(': '', 'other': ''}
 
     line = replace_all(line.lower(), repd).split('#')[0]
     try:
         # ds9-like format all values separated by ,
         polyline = np.array(line.strip().split(','), dtype=float)
     except:
-        # shapely-like format (x0 y0, x1 y1, ...)
-        line = line.strip().replace(' ', ',').replace(',,', ',')
-        polyline = np.array(line.strip().split(','), dtype=float)
+        try:
+            # shapely-like format (x0 y0, x1 y1, ...)
+            xline = line.strip().replace(' ', ',').replace(',,,', ',').replace(',,',',')
+            polyline = np.array(xline.strip().split(','), dtype=float)
+        except:
+            import pdb; pdb.set_trace()
 
     if closed:
         if False in polyline[:2] == polyline[-2:]:
