@@ -1,23 +1,31 @@
-#!/astro/apps6/anaconda2.0/bin/python
 """
-Update fits file headers
+Update or revert from update, fits file headers
 """
 from __future__ import print_function
 import argparse
 import sys
+
 from astropy.io import fits
 from time import localtime, strftime
 
-fmt = u'{}: Updated {} from {} to {}'
-efmt = u'{}: Doing nothing for {} {}'
+
+fmt = u'{0:s}: Updated {1:s} from {2:s} to {3:s}'
+efmt = u'{0:s}: Doing nothing for {1:s} {2:s}'
 
 
 def revert_key(key, fnames=None):
     """
-    Revert an update (from update_key)
+    Revert an update (finds the updated key(s) in the history card)
+
+    Parameters
+    ----------
+    key : string
+        field name in fits header
+
+    filenames : list of strings
+        fitsfiles to change headers
     """
     fnames = fnames or []
-
     for fname in fnames:
         hdu = fits.open(fname, mode='update')
         hdr = hdu[0].header
@@ -40,15 +48,26 @@ def revert_key(key, fnames=None):
         else:
             oldval = update[0].split('from')[1].split('to')[0].strip()
 
-        # print('update_key({}, {}, fnames=[{}])'.format(key, oldval, fname))
         update_key(key, oldval, fnames=[fname])
 
+    return
 
 def update_key(key, newval, fnames=None):
     """
     Change header key of fitsfile(s)
 
     usage: update_key.py key newval filename(s)
+
+    Parameters
+    ----------
+    key : string
+        field name in fits header
+
+    newval : string
+        new field name for fits header
+
+    filenames : list of strings
+        fitsfiles to change headers
     """
     fnames = fnames or []
     try:
@@ -76,8 +95,8 @@ def update_key(key, newval, fnames=None):
     return
 
 
-def main(argv):
-    """update_key caller"""
+def parse_args(argv=None):
+    """argparse caller for main"""
     parser = argparse.ArgumentParser(description=update_key.__doc__)
 
     parser.add_argument('key', type=str, help='column header to update')
@@ -87,10 +106,15 @@ def main(argv):
     parser.add_argument('fnames', type=str, nargs='*',
                         help='fits file name(s)')
 
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    """main function for update_key"""
+    args = parse_args(argv)
 
     update_key(args.key, args.newval, args.fnames)
-
+    return
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    sys.exit(main())

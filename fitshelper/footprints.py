@@ -2,13 +2,7 @@ import numpy as np
 from collections import OrderedDict
 from shapely.geometry import Polygon
 
-
-def replace_all(text, dic):
-    """perfrom text.replace(key, value) for all keys and values in dic"""
-    for old, new in dic.items():
-        text = text.replace(old, new)
-    return text
-
+from .utils import replace_all
 
 def find_footprint(fitsfile, hdrext=1, closed=True):
     """
@@ -99,11 +93,14 @@ def parse_poly(line, closed=True, return_string=False):
         polyline = np.array(line.strip().split(','), dtype=float)
     except:
         try:
-            # shapely-like format (x0 y0, x1 y1, ...)
-            xline = line.strip().replace(' ', ',').replace(',,,', ',').replace(',,',',')
+            # shapely-like format .to_wkt(): (x0 y0, x1 y1, ...)
+            xline = line.strip().replace(' ', ',') \
+                                .replace(',,,', ',') \
+                                .replace(',,',',')
             polyline = np.array(xline.strip().split(','), dtype=float)
         except:
-            import pdb; pdb.set_trace()
+            print("Do not know how to parse coords")
+            sys.exit(1)
 
     if closed:
         if False in polyline[:2] == polyline[-2:]:
